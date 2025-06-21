@@ -2,17 +2,10 @@
 
 import { BaseMessage } from './base';
 import { TpaToCloudMessageType } from '../message-types';
-import { ExtendedStreamType, StreamType } from '../streams';
+import { ExtendedStreamType, LocationStreamRequest } from '../streams';
 import { DisplayRequest } from '../layouts';
 import { DashboardContentUpdate, DashboardModeChange, DashboardSystemUpdate } from '../dashboard';
 import { VideoConfig, AudioConfig, StreamConfig } from '../rtmp-stream';
-
-// [NEW TYPE DEFINITION]
-// Defines a specific object for our tiered location stream requests.
-export interface LocationStreamRequest {
-  stream: 'location_stream';
-  rate: 'standard' | 'high' | 'realtime' | 'tenMeters' | 'hundredMeters' | 'kilometer' | 'threeKilometers' | 'reduced';
-}
 
 // [UPDATED TYPE DEFINITION]
 // A subscription can now be a generic stream type OR our specific location request object.
