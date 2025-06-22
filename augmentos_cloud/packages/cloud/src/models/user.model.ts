@@ -69,7 +69,7 @@ export interface UserI extends Document {
    */
   onboardingStatus?: Record<string, boolean>;
 
-  // [NEW] Fields for tiered location streaming
+  // fields for new tiered location streaming
   location_subscriptions?: Map<string, { rate: string }>;
   effective_location_rate?: string;
 
@@ -245,7 +245,7 @@ const UserSchema = new Schema<UserI>({
     default: {},
   },
 
-  // [NEW] Schema definitions for tiered location streaming
+  // schema definitions for tiered location streaming
   location_subscriptions: {
     type: Map,
     of: {
