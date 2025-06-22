@@ -69,6 +69,10 @@ export interface UserI extends Document {
    */
   onboardingStatus?: Record<string, boolean>;
 
+  // [NEW] Fields for tiered location streaming
+  location_subscriptions?: Map<string, { rate: string }>;
+  effective_location_rate?: string;
+
   setLocation(location: Location): Promise<void>;
   addRunningApp(appName: string): Promise<void>;
   removeRunningApp(appName: string): Promise<void>;
@@ -240,6 +244,23 @@ const UserSchema = new Schema<UserI>({
     of: Boolean,
     default: {},
   },
+
+  // [NEW] Schema definitions for tiered location streaming
+  location_subscriptions: {
+    type: Map,
+    of: {
+      rate: {
+        type: String,
+        enum: ['reduced', 'threeKilometers', 'kilometer', 'hundredMeters', 'tenMeters', 'high', 'realtime'],
+        default: 'reduced'
+      }
+    },
+    default: {}
+  },
+  effective_location_rate: {
+    type: String,
+    default: 'reduced'
+  }
 }, {
   timestamps: true,
   optimisticConcurrency: true,
