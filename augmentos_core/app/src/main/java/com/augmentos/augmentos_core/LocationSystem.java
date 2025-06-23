@@ -275,6 +275,18 @@ public class LocationSystem extends Service {
         }
     }
 
+    // [NEW] Boilerplate for tiered streaming
+    public void setLocationTier(String tier) {
+        Log.d(TAG, "LocationSystem: Would set location tier to " + tier);
+        // Streaming logic will be implemented here later
+    }
+
+    // [NEW] Boilerplate for on-demand polling
+    public void requestSingleUpdate(String accuracy) {
+        Log.d(TAG, "LocationSystem: Would request single update with accuracy " + accuracy);
+        // Polling logic will be implemented here later
+    }
+
     public void sendLocationToServer() {
         double latitude = getNewLat();
         double longitude = getNewLng();

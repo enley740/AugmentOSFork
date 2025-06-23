@@ -637,6 +637,24 @@ public class ServerComms {
 //        Log.d(TAG, "Received message of type: " + msg);
 
         switch (type) {
+            case "SET_LOCATION_TIER":
+                try {
+                    String rate = msg.getJSONObject("payload").getString("rate");
+                    LocationSystem.getInstance().setLocationTier(rate);
+                } catch (JSONException e) {
+                    Log.e(TAG, "Error parsing SET_LOCATION_TIER payload", e);
+                }
+                break;
+
+            case "REQUEST_SINGLE_LOCATION":
+                try {
+                    String accuracy = msg.getJSONObject("payload").getString("accuracy");
+                    LocationSystem.getInstance().requestSingleUpdate(accuracy);
+                } catch (JSONException e) {
+                    Log.e(TAG, "Error parsing REQUEST_SINGLE_LOCATION payload", e);
+                }
+                break;
+
             case "connection_ack":
                 Log.d(TAG, "Received connection_ack. Possibly store sessionId if needed.");
                 startAudioSenderThread();
