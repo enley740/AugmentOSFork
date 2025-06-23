@@ -377,6 +377,21 @@ class ServerComms {
     
     print("Received message of type: \(type)")
     
+    // [NEW] Handle new location commands
+    if type == "SET_LOCATION_TIER" {
+        if let payload = msg["payload"] as? [String: Any],
+           let rate = payload["rate"] as? String {
+            self.locationManager.setLocationTier(rate)
+        }
+        return // End processing for this message type
+    } else if type == "REQUEST_SINGLE_LOCATION" {
+        if let payload = msg["payload"] as? [String: Any],
+           let accuracy = payload["accuracy"] as? String {
+            self.locationManager.requestSingleUpdate(accuracy: accuracy)
+        }
+        return // End processing for this message type
+    }
+
     switch type {
     case "connection_ack":
       startAudioSenderThread()

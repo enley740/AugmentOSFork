@@ -32,8 +32,20 @@ class LocationManager: NSObject, CLLocationManagerDelegate {
     locationManager.startUpdatingLocation()
   }
   
-  func setLocationChangedCallback(_ callback: @escaping () -> Void) {
+  public func setLocationChangedCallback(_ callback: @escaping () -> Void) {
     self.locationChangedCallback = callback
+  }
+  
+  // [NEW] Boilerplate for tiered streaming
+  public func setLocationTier(_ tier: String) {
+    print("LocationManager: Would set location tier to \(tier)")
+    // Streaming logic will be implemented here later
+  }
+  
+  // [NEW] Boilerplate for on-demand polling
+  public func requestSingleUpdate(accuracy: String) {
+    print("LocationManager: Would request single update with accuracy \(accuracy)")
+    // Polling logic will be implemented here later
   }
   
   // MARK: - CLLocationManagerDelegate Methods
