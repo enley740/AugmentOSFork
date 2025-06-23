@@ -23,6 +23,7 @@ import {
   PhotoRequest,
   RtmpStreamRequest,
   RtmpStreamStopRequest,
+  TpaLocationPollRequest,
 } from '@augmentos/sdk';
 import UserSession from '../session/UserSession';
 import * as developerService from '../core/developer.service';
@@ -30,6 +31,7 @@ import { sessionService } from '../session/session.service';
 import subscriptionService from '../session/subscription.service';
 import { logger as rootLogger } from '../logging/pino-logger';
 import transcriptionService from '../processing/transcription.service';
+import { locationService } from '../core/location.service';
 import photoRequestService from '../core/photo-request.service';
 import e from 'express';
 
@@ -184,7 +186,12 @@ export class TpaWebSocketService {
       // Process based on message type
       switch (message.type) {
         case TpaToCloudMessageType.SUBSCRIPTION_UPDATE:
-          this.handleSubscriptionUpdate(tpaWebsocket, userSession, message);
+          await this.handleSubscriptionUpdate(tpaWebsocket, userSession, message as TpaSubscriptionUpdate);
+          break;
+
+        case TpaToCloudMessageType.LOCATION_POLL_REQUEST:
+          const pollRequest = message as TpaLocationPollRequest;
+          await locationService.handlePollRequest(userSession.userId, pollRequest.accuracy);
           break;
 
         case TpaToCloudMessageType.DISPLAY_REQUEST:
@@ -286,6 +293,9 @@ export class TpaWebSocketService {
       message.packageName,
       message.subscriptions
     );
+
+    // After subscriptions are updated in the DB, trigger our new service
+    await locationService.handleSubscriptionChange(userSession.userId);
 
     // Get the new minimal language subscriptions after update
     const newLanguageSubscriptions = subscriptionService.getMinimalLanguageSubscriptions(userSession.userId);

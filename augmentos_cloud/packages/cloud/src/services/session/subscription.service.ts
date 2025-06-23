@@ -10,12 +10,13 @@
  * - Enforcing permission checks on subscriptions
  */
 
-import { StreamType, ExtendedStreamType, isLanguageStream, parseLanguageStream, createTranscriptionStream, CalendarEvent } from '@augmentos/sdk';
+import { StreamType, ExtendedStreamType, isLanguageStream, parseLanguageStream, createTranscriptionStream, CalendarEvent, SubscriptionRequest, LocationStreamRequest } from '@augmentos/sdk';
 import { logger as rootLogger } from '../logging/pino-logger';
 import { SimplePermissionChecker } from '../permissions/simple-permission-checker';
 import App from '../../models/app.model';
 import { sessionService } from './session.service';
 import UserSession from './UserSession';
+import { User, UserI } from '../../models/user.model';
 
 const logger = rootLogger.child({ service: 'subscription.service' });
 
@@ -157,7 +158,7 @@ export class SubscriptionService {
   async updateSubscriptions(
     userSession: UserSession,
     packageName: string,
-    subscriptions: ExtendedStreamType[]
+    subscriptions: SubscriptionRequest[]
   ): Promise<void> {
     const key = this.getKey(userSession.userId, packageName);
 
@@ -174,12 +175,9 @@ export class SubscriptionService {
 
     logger.info({ key, subscriptions, userId: userSession.userId }, 'Processing subscription update');
 
-    // Validate subscriptions format
-    const processedSubscriptions = subscriptions.map(sub =>
-      sub === StreamType.TRANSCRIPTION ?
-        createTranscriptionStream('en-US') :
-        sub
-    );
+    // We process the raw SubscriptionRequest array first
+    const processedSubscriptions: ExtendedStreamType[] = subscriptions.map(sub => (typeof sub === 'string' ? sub : sub.stream));
+    const locationStreamSub = subscriptions.find(s => typeof s !== 'string' && s.stream === 'location_stream') as LocationStreamRequest | undefined;
 
     for (const sub of processedSubscriptions) {
       if (!this.isValidSubscription(sub)) {
@@ -248,11 +246,24 @@ export class SubscriptionService {
           appWebsocket.send(JSON.stringify(errorMessage));
         }
 
-
         // Continue with only the allowed subscriptions
         processedSubscriptions.length = 0;
         processedSubscriptions.push(...allowed);
       }
+
+      // After permission checks, update the database
+      const user = await User.findOne({ email: userSession.userId });
+      if (user) {
+        const locationSubs = user.location_subscriptions || new Map();
+        if (locationStreamSub && allowed.includes('location_stream')) {
+          locationSubs.set(packageName, { rate: locationStreamSub.rate || 'reduced' });
+        } else {
+          locationSubs.delete(packageName);
+        }
+        user.location_subscriptions = locationSubs;
+        await user.save();
+      }
+
       const newSubs = new Set(processedSubscriptions);
 
       // At the end, before setting:
