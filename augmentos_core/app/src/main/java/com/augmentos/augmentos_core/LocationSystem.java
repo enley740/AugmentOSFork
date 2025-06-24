@@ -413,7 +413,7 @@ public class LocationSystem extends Service {
      */
     public void cleanup() {
         // Remove all pending callbacks
-        locationSendingLoopHandler.removeCallbacksAndMessages(null);
+            locationSendingLoopHandler.removeCallbacksAndMessages(null);
         
         // Make sure location updates are stopped
         stopLocationUpdates();
