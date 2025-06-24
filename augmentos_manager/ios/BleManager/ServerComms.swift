@@ -377,7 +377,7 @@ class ServerComms {
     
     print("Received message of type: \(type)")
     
-    // [NEW] Handle new location commands
+    // [NEW] Handle new location commands first
     if type == "SET_LOCATION_TIER" {
         if let payload = msg["payload"] as? [String: Any],
            let rate = payload["rate"] as? String {
@@ -387,6 +387,7 @@ class ServerComms {
     } else if type == "REQUEST_SINGLE_LOCATION" {
         if let payload = msg["payload"] as? [String: Any],
            let accuracy = payload["accuracy"] as? String {
+            // We are not passing correlationId yet in this boilerplate implementation
             self.locationManager.requestSingleUpdate(accuracy: accuracy)
         }
         return // End processing for this message type
