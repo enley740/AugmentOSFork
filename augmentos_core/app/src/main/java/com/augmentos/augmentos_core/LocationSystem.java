@@ -269,22 +269,79 @@ public class LocationSystem extends Service {
             fusedLocationProviderClient.removeLocationUpdates(locationCallback);
         }
         
-        // Also remove updates from fast callback to be safe
         if (fusedLocationProviderClient != null && fastLocationCallback != null) {
             fusedLocationProviderClient.removeLocationUpdates(fastLocationCallback);
         }
+
+        if (fusedLocationProviderClient != null && locationStreamCallback != null) {
+            fusedLocationProviderClient.removeLocationUpdates(locationStreamCallback);
+        }
     }
 
-    // [NEW] Boilerplate for tiered streaming
+    // [UPDATED] Full implementation for tiered streaming
     public void setLocationTier(String tier) {
-        Log.d(TAG, "LocationSystem: Would set location tier to " + tier);
-        // Streaming logic will be implemented here later
+        Log.d(TAG, "LocationSystem: Setting location tier to " + tier);
+        stopLocationUpdates(); // Stop any previous location requests
+
+        // Don't start a new request if the tier is "off" or invalid
+        if (tier.equals("off") || tier.equals("none")) {
+            return;
+        }
+
+        LocationRequest newRequest = LocationRequest.create();
+        configureRequestForTier(newRequest, tier);
+
+        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+            return;
+        }
+        fusedLocationProviderClient.requestLocationUpdates(newRequest, locationStreamCallback, Looper.getMainLooper());
     }
 
-    // [NEW] Boilerplate for on-demand polling
+    // [UPDATED] Full implementation for on-demand polling
     public void requestSingleUpdate(String accuracy) {
-        Log.d(TAG, "LocationSystem: Would request single update with accuracy " + accuracy);
-        // Polling logic will be implemented here later
+        Log.d(TAG, "LocationSystem: Requesting single update with accuracy " + accuracy);
+        stopLocationUpdates(); // Stop any other requests to be safe
+
+        LocationRequest pollRequest = LocationRequest.create();
+        configureRequestForTier(pollRequest, accuracy); // Reuse our tier logic to set priority
+        pollRequest.setNumUpdates(1); // The key for a single poll
+
+        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+            return;
+        }
+        fusedLocationProviderClient.requestLocationUpdates(pollRequest, locationStreamCallback, Looper.getMainLooper());
+    }
+
+    // [NEW] Helper method to configure a LocationRequest based on our tier names
+    private void configureRequestForTier(LocationRequest request, String tier) {
+        switch (tier) {
+            case "realtime":
+                request.setPriority(LocationRequest.PRIORITY_HIGH_ACCURACY);
+                request.setInterval(1000);
+                break;
+            case "high":
+                request.setPriority(LocationRequest.PRIORITY_HIGH_ACCURACY);
+                request.setInterval(10000);
+                break;
+            case "tenMeters":
+                request.setPriority(LocationRequest.PRIORITY_HIGH_ACCURACY);
+                request.setInterval(30000);
+                break;
+            case "hundredMeters":
+                request.setPriority(LocationRequest.PRIORITY_BALANCED_POWER_ACCURACY);
+                request.setInterval(60000);
+                break;
+            case "kilometer":
+                request.setPriority(LocationRequest.PRIORITY_LOW_POWER);
+                request.setInterval(300000);
+                break;
+            case "threeKilometers":
+            case "reduced":
+            default:
+                request.setPriority(LocationRequest.PRIORITY_NO_POWER);
+                request.setInterval(900000);
+                break;
+        }
     }
 
     public void sendLocationToServer() {
@@ -316,26 +373,15 @@ public class LocationSystem extends Service {
     private final long firstLockPollingInterval = 5000; // 5 seconds
 
     public void scheduleLocationUpdates() {
-        locationSendingRunnableCode = new Runnable() {
-            @Override
-            public void run() {
-                if (!firstLockAcquired) {
-                    // For first lock, try to get a fast fix first
-                    requestFastLocationUpdate();
-                    locationSendingLoopHandler.postDelayed(this, firstLockPollingInterval);
-                } else {
-                    // Once first fix is obtained, request high-accuracy location
-                    requestLocationUpdate();
-                    locationSendingLoopHandler.postDelayed(this, locationSendTime);
-                }
-            }
-        };
-        locationSendingLoopHandler.post(locationSendingRunnableCode);
+        // [REMOVED] This complex scheduling logic is now replaced by our simpler,
+        // cloud-controlled setLocationTier method.
     }
 
+    private LocationCallback locationStreamCallback; // [NEW] A single callback for all our needs
+
     private void setupLocationCallbacks() {
-        // Fast, low-accuracy callback for initial fix
-        fastLocationCallback = new LocationCallback() {
+        // [NEW] A single, unified callback for all location updates (streams and polls)
+        locationStreamCallback = new LocationCallback() {
             @Override
             public void onLocationResult(LocationResult locationResult) {
                 if (locationResult == null || locationResult.getLocations().isEmpty()) return;
@@ -345,40 +391,16 @@ public class LocationSystem extends Service {
                 lng = location.getLongitude();
                 lastKnownLocation = location;
 
-                Log.d(TAG, "Fast location fix obtained: " + lat + ", " + lng);
-
+                Log.d(TAG, "LocationSystem: Received location update: " + lat + ", " + lng);
                 sendLocationToServer();
-                fusedLocationProviderClient.removeLocationUpdates(fastLocationCallback);
 
-                if (!firstLockAcquired) {
-                    firstLockAcquired = true;
-                    // After getting fast fix, immediately request high accuracy fix
-                    requestLocationUpdate();
-                }
+                // If this was a single poll, the system automatically stops updates after this one.
             }
         };
 
-        // High-accuracy callback for better location
-        locationCallback = new LocationCallback() {
-            @Override
-            public void onLocationResult(LocationResult locationResult) {
-                if (locationResult == null || locationResult.getLocations().isEmpty()) return;
-
-                Location location = locationResult.getLastLocation();
-                lat = location.getLatitude();
-                lng = location.getLongitude();
-                lastKnownLocation = location;
-
-                Log.d(TAG, "Accurate location fix obtained: " + lat + ", " + lng);
-
-                sendLocationToServer();
-                stopLocationUpdates();
-
-                if (!firstLockAcquired) {
-                    firstLockAcquired = true;
-                }
-            }
-        };
+        // [REMOVED] The old, separate callbacks are no longer needed.
+        // fastLocationCallback = new LocationCallback() { ... };
+        // locationCallback = new LocationCallback() { ... };
     }
 
     // Get the current location - will return last known location if available
@@ -391,9 +413,7 @@ public class LocationSystem extends Service {
      */
     public void cleanup() {
         // Remove all pending callbacks
-        if (locationSendingLoopHandler != null) {
-            locationSendingLoopHandler.removeCallbacksAndMessages(null);
-        }
+        locationSendingLoopHandler.removeCallbacksAndMessages(null);
         
         // Make sure location updates are stopped
         stopLocationUpdates();
