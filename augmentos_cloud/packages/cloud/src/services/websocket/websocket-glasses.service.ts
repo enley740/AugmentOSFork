@@ -473,16 +473,22 @@ export class GlassesWebSocketService {
   private async handleLocationUpdate(userSession: UserSession, message: LocationUpdate): Promise<void> {
     userSession.logger.debug({ message, service: SERVICE_NAME }, 'Location update received from glasses');
     try {
+      const now = new Date();
       // Cache the location update in subscription service
       subscriptionService.cacheLocation(userSession.sessionId, {
         latitude: message.lat,
         longitude: message.lng,
-        timestamp: new Date()
+        timestamp: now
       });
 
       const user = await User.findByEmail(userSession.userId);
       if (user) {
-        await user.setLocation(message);
+        const locationData = {
+          lat: message.lat,
+          lng: message.lng,
+          timestamp: now
+        };
+        await user.setLocation(locationData);
       }
     }
     catch (error) {
