@@ -35,6 +35,8 @@ class LocationManager: NSObject, CLLocationManagerDelegate {
   public func setLocationChangedCallback(_ callback: @escaping () -> Void) {
     self.locationChangedCallback = callback
   }
+
+  
   
   // [NEW] Boilerplate for tiered streaming
   public func setLocationTier(_ tier: String) {
