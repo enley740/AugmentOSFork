@@ -191,7 +191,7 @@ export class TpaWebSocketService {
 
         case TpaToCloudMessageType.LOCATION_POLL_REQUEST:
           const pollRequest = message as TpaLocationPollRequest;
-          await locationService.handlePollRequest(userSession.userId, pollRequest.accuracy);
+          await locationService.handlePollRequest(userSession.userId, pollRequest.accuracy, pollRequest.correlationId);
           break;
 
         case TpaToCloudMessageType.DISPLAY_REQUEST:
