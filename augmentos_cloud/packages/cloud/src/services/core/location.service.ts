@@ -3,13 +3,19 @@ import { sessionService } from '../session/session.service';
 import subscriptionService from '../session/subscription.service';
 import { logger as rootLogger } from '../logging/pino-logger';
 import WebSocket from 'ws';
+import { CloudToGlassesMessageType } from '@augmentos/sdk';
 
 const logger = rootLogger.child({ service: 'location.service' });
 
-const TIER_ORDER = ['reduced', 'threeKilometers', 'kilometer', 'hundredMeters', 'tenMeters', 'high', 'realtime'];
+// The order of this array defines the priority. 'realtime' is highest.
+const TIER_HIERARCHY = ['reduced', 'threeKilometers', 'kilometer', 'hundredMeters', 'tenMeters', 'high', 'realtime'];
 
 class LocationService {
 
+  /**
+   * This is the main entry point for the streaming logic.
+   * It's called by websocket-tpa.service.ts whenever a TPA's subscriptions change.
+   */
   public async handleSubscriptionChange(userId: string): Promise<void> {
     const user = await User.findOne({ email: userId });
     if (!user) {
@@ -21,72 +27,58 @@ class LocationService {
     const newEffectiveRate = this._calculateEffectiveRateForUser(user);
 
     if (newEffectiveRate !== previousEffectiveRate) {
-      logger.info({ userId, oldRate: previousEffectiveRate, newRate: newEffectiveRate }, "Effective location rate changed.");
+      logger.info({ userId, oldRate: previousEffectiveRate, newRate: newEffectiveRate }, "Effective location rate has changed. Updating database and commanding device.");
+      
+      // Persist the new effective rate to the database
       user.effective_location_rate = newEffectiveRate;
       await user.save();
       
+      // Send the command to the physical device
       const userSession = sessionService.getSessionByUserId(userId);
       if (userSession?.websocket && userSession.websocket.readyState === WebSocket.OPEN) {
         this._sendCommandToDevice(userSession.websocket, 'SET_LOCATION_TIER', { rate: newEffectiveRate });
       } else {
         logger.warn({ userId }, "User session or WebSocket not available to send location tier command.");
       }
+    } else {
+      logger.info({ userId, rate: newEffectiveRate }, "Location subscriptions changed, but effective rate remains the same. No command sent.");
     }
   }
 
+  /**
+   * This is the placeholder for the polling logic, which we will implement later.
+   */
   public async handlePollRequest(userId: string, accuracy: string): Promise<void> {
-    const user = await User.findOne({ email: userId });
-    if (!user) {
-      logger.warn({ userId }, "User not found during location poll request.");
-      return;
-    }
-
-    const userSession = sessionService.getSessionByUserId(userId);
-    if (!userSession?.websocket || userSession.websocket.readyState !== WebSocket.OPEN) {
-      logger.warn({ userId }, "User session or WebSocket not available for poll request.");
-      return;
-    }
-    
-    // Step 1: Check for a high-accuracy active stream
-    const currentEffectiveRate = user.effective_location_rate || 'reduced';
-    const highAccuracyStreamRunning = TIER_ORDER.indexOf(currentEffectiveRate) >= TIER_ORDER.indexOf('high');
-
-    if (highAccuracyStreamRunning) {
-        const lastLocation = subscriptionService.getLastLocation(userSession.sessionId);
-        if(lastLocation){
-            logger.info({ userId, accuracy }, "Fulfilling poll request from active high-accuracy stream.");
-            // TODO: We need to add correlationId to the message sent back to the TPA
-            // This requires modifying the relay logic to include it.
-            return; 
-        }
-    }
-
-    // Step 2: Check cache (logic to be implemented, requires timestamp on user.location)
-    // For now, we proceed to a hardware poll.
-    
-    // Step 3: Trigger hardware poll
-    logger.info({ userId, accuracy }, "No active stream or fresh cache, requesting hardware poll.");
-    this._sendCommandToDevice(userSession.websocket, 'REQUEST_SINGLE_LOCATION', { accuracy });
+    logger.info({ userId, accuracy }, "Handling poll request for location service. (Logic to be implemented)");
+    // The full Intelligent Poll algorithm will be implemented here in Phase 2.
   }
 
+  /**
+   * Calculates the highest tier requested by any of the user's active TPAs.
+   */
   private _calculateEffectiveRateForUser(user: UserI): string {
+    const defaultRate = 'reduced';
     if (!user.location_subscriptions || user.location_subscriptions.size === 0) {
-      return 'reduced'; // Default if no subscriptions
+      return defaultRate;
     }
 
     let highestTierIndex = -1;
 
-    for (const sub of user.location_subscriptions.values()) {
-      const rate = sub.rate;
-      const tierIndex = TIER_ORDER.indexOf(rate);
+    // The user document stores a map of: packageName -> { rate: '...' }
+    // We iterate through all the stored rates for this user.
+    for (const subDetails of user.location_subscriptions.values()) {
+      const tierIndex = TIER_HIERARCHY.indexOf(subDetails.rate);
       if (tierIndex > highestTierIndex) {
         highestTierIndex = tierIndex;
       }
     }
 
-    return highestTierIndex > -1 ? TIER_ORDER[highestTierIndex] : 'reduced';
+    return highestTierIndex > -1 ? TIER_HIERARCHY[highestTierIndex] : defaultRate;
   }
 
+  /**
+   * Sends a command to the device's native WebSocket connection.
+   */
   private _sendCommandToDevice(ws: WebSocket, type: string, payload: any): void {
     try {
       const message = {
@@ -95,6 +87,7 @@ class LocationService {
         timestamp: new Date().toISOString()
       };
       ws.send(JSON.stringify(message));
+      logger.info({ type, payload }, "Successfully sent command to device.");
     } catch (error) {
         logger.error({error, type}, "Failed to send command to device.")
     }

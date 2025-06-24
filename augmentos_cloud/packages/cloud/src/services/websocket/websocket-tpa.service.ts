@@ -287,14 +287,14 @@ export class TpaWebSocketService {
       !subscriptionService.hasSubscription(userSession.userId, message.packageName, StreamType.LOCATION_UPDATE) &&
       message.subscriptions.includes(StreamType.LOCATION_UPDATE);
 
-    // Update subscriptions (async)
+    // Update subscriptions in the database
     await subscriptionService.updateSubscriptions(
       userSession,
       message.packageName,
       message.subscriptions
     );
 
-    // After subscriptions are updated in the DB, trigger our new service
+    // After subscriptions are saved, trigger the location service to check for rate changes.
     await locationService.handleSubscriptionChange(userSession.userId);
 
     // Get the new minimal language subscriptions after update

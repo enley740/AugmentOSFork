@@ -7,6 +7,7 @@ import { logger } from '@augmentos/utils';
 interface Location {
   lat: number;
   lng: number;
+  timestamp: Date;
 }
 
 interface InstalledApp {
@@ -176,7 +177,8 @@ const UserSchema = new Schema<UserI>({
   location: {
     type: {
       lat: { type: Number, required: true },
-      lng: { type: Number, required: true }
+      lng: { type: Number, required: true },
+      timestamp: { type: Date }
     }
   },
 

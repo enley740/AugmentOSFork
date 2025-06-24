@@ -68,6 +68,7 @@ export interface TpaLocationPollRequest extends BaseMessage {
   packageName: string;
   sessionId: string;
   accuracy: string;
+  correlationId: string;
 }
 
 /**
