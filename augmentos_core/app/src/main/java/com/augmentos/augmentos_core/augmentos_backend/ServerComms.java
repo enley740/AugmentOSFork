@@ -648,7 +648,9 @@ public class ServerComms {
 
             case "REQUEST_SINGLE_LOCATION":
                 try {
-                    String accuracy = msg.getJSONObject("payload").getString("accuracy");
+                    JSONObject payload = msg.getJSONObject("payload");
+                    String accuracy = payload.getString("accuracy");
+                    // String correlationId = payload.getString("correlationId"); // Will use this later
                     LocationSystem.getInstance().requestSingleUpdate(accuracy);
                 } catch (JSONException e) {
                     Log.e(TAG, "Error parsing REQUEST_SINGLE_LOCATION payload", e);

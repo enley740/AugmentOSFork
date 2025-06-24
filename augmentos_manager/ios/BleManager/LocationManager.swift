@@ -12,6 +12,7 @@ class LocationManager: NSObject, CLLocationManagerDelegate {
   private let locationManager = CLLocationManager()
   private var locationChangedCallback: (() -> Void)?
   private var currentLocation: CLLocation?
+  private var locationPollingTimer: Timer? // [NEW] Timer for low-power polling
   
   override init() {
     super.init()
@@ -36,18 +37,92 @@ class LocationManager: NSObject, CLLocationManagerDelegate {
     self.locationChangedCallback = callback
   }
 
-  
-  
-  // [NEW] Boilerplate for tiered streaming
+  // [UPDATED] Full implementation for tiered streaming
   public func setLocationTier(_ tier: String) {
-    print("LocationManager: Would set location tier to \(tier)")
-    // Streaming logic will be implemented here later
+    // Always stop any previous work before starting a new mode
+    locationManager.stopUpdatingLocation()
+    locationPollingTimer?.invalidate()
+    locationPollingTimer = nil
+
+    print("LocationManager: Setting location tier to \(tier)")
+
+    switch tier {
+    case "realtime":
+        locationManager.allowsBackgroundLocationUpdates = true
+        locationManager.pausesLocationUpdatesAutomatically = false
+        locationManager.desiredAccuracy = kCLLocationAccuracyBestForNavigation
+        locationManager.distanceFilter = kCLDistanceFilterNone
+        locationManager.startUpdatingLocation()
+
+    case "high":
+        locationManager.allowsBackgroundLocationUpdates = true
+        locationManager.pausesLocationUpdatesAutomatically = false
+        locationManager.desiredAccuracy = kCLLocationAccuracyBest
+        locationManager.distanceFilter = 2
+        locationManager.startUpdatingLocation()
+
+    case "tenMeters":
+        locationManager.allowsBackgroundLocationUpdates = false
+        locationManager.pausesLocationUpdatesAutomatically = true
+        locationManager.desiredAccuracy = kCLLocationAccuracyNearestTenMeters
+        locationManager.distanceFilter = 10
+        locationManager.startUpdatingLocation()
+
+    case "hundredMeters":
+        locationManager.allowsBackgroundLocationUpdates = false
+        locationManager.pausesLocationUpdatesAutomatically = true
+        locationManager.desiredAccuracy = kCLLocationAccuracyHundredMeters
+        locationManager.distanceFilter = 100
+        locationManager.startUpdatingLocation()
+
+    case "kilometer":
+        locationManager.allowsBackgroundLocationUpdates = false
+        locationManager.pausesLocationUpdatesAutomatically = true
+        // Use timer-based polling for low-power, infrequent updates
+        locationPollingTimer = Timer.scheduledTimer(withTimeInterval: 300.0, repeats: true) { [weak self] _ in
+            self?.locationManager.requestLocation()
+        }
+    
+    case "threeKilometers", "reduced":
+        locationManager.allowsBackgroundLocationUpdates = false
+        locationManager.pausesLocationUpdatesAutomatically = true
+        // Use timer-based polling for lowest-power, very infrequent updates
+        locationPollingTimer = Timer.scheduledTimer(withTimeInterval: 900.0, repeats: true) { [weak self] _ in
+            self?.locationManager.requestLocation()
+        }
+
+    default:
+        // Turn everything off if tier is unknown or "off"
+        locationManager.allowsBackgroundLocationUpdates = false
+        locationManager.pausesLocationUpdatesAutomatically = true
+    }
   }
   
-  // [NEW] Boilerplate for on-demand polling
+  // [UPDATED] Full implementation for on-demand polling
   public func requestSingleUpdate(accuracy: String) {
-    print("LocationManager: Would request single update with accuracy \(accuracy)")
-    // Polling logic will be implemented here later
+    print("LocationManager: Requesting single update with accuracy \(accuracy)")
+    
+    // Set the desired accuracy for this specific one-time request
+    switch accuracy {
+      case "realtime":
+        locationManager.desiredAccuracy = kCLLocationAccuracyBestForNavigation
+      case "high":
+        locationManager.desiredAccuracy = kCLLocationAccuracyBest
+      case "tenMeters":
+        locationManager.desiredAccuracy = kCLLocationAccuracyNearestTenMeters
+      case "hundredMeters":
+        locationManager.desiredAccuracy = kCLLocationAccuracyHundredMeters
+      case "kilometer":
+        locationManager.desiredAccuracy = kCLLocationAccuracyKilometer
+      case "threeKilometers":
+        locationManager.desiredAccuracy = kCLLocationAccuracyThreeKilometers
+      default: // reduced
+        locationManager.desiredAccuracy = kCLLocationAccuracyReduced
+    }
+    
+    // This is Apple's built-in method for a single, power-efficient location fix.
+    // It turns the GPS on, gets one location, and turns it off.
+    locationManager.requestLocation()
   }
   
   // MARK: - CLLocationManagerDelegate Methods
